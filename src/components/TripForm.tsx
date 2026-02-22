@@ -242,7 +242,7 @@ export default function TripForm() {
   };
 
   const sections = parseIntoSections(result);
-  const vibeLabel = vibe.charAt(0).toUpperCase() + vibe.slice(1);
+  //const vibeLabel = vibe.charAt(0).toUpperCase() + vibe.slice(1);
 
   return (
     <div style={{ width: "100%", maxWidth: 700 }}>
