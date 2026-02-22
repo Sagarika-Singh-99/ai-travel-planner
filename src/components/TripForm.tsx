@@ -6,7 +6,6 @@ const API_BASE =
     ? "http://localhost:4000"
     : "https://ai-travel-middleware.onrender.com";
 
-
 export default function TripForm() {
   const [destination, setDestination] = useState("");
   const [days, setDays] = useState(3);
@@ -24,7 +23,7 @@ export default function TripForm() {
     const payload = { destination, days, vibe };
 
     try {
-       const res = await fetch(`${API_BASE}/api/plan-trip`, {
+      const res = await fetch(`${API_BASE}/api/plan-trip`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -32,7 +31,6 @@ export default function TripForm() {
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-      // ✅ Read the stream chunk by chunk
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
 
@@ -40,11 +38,7 @@ export default function TripForm() {
         const { done, value } = await reader.read();
         if (done) break;
 
-        // Decode the raw chunk into text
         const chunk = decoder.decode(value, { stream: true });
-
-        // Each SSE message looks like: "data: {...}\n\n"
-        // Split by newlines to handle multiple messages in one chunk
         const lines = chunk.split("\n");
 
         for (const line of lines) {
@@ -60,15 +54,13 @@ export default function TripForm() {
           try {
             const parsed = JSON.parse(raw);
             if (parsed.token) {
-              // ✅ Append each token to result as it arrives
               setResult((prev) => prev + parsed.token);
             }
           } catch {
-            // Ignore malformed chunks
+            // ignore bad chunks
           }
         }
       }
-
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -77,11 +69,17 @@ export default function TripForm() {
   };
 
   return (
-    <div style={{ maxWidth: 720, margin: "60px auto", fontFamily: "sans-serif", padding: "0 16px" }}>
+    <div
+      style={{
+        maxWidth: 720,
+        margin: "60px auto",
+        fontFamily: "sans-serif",
+        padding: "0 16px",
+      }}
+    >
       <h1>🌍 AI Travel Planner</h1>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
         <label>
           Destination
           <input
@@ -117,7 +115,7 @@ export default function TripForm() {
             <option value="adventure">🧗 Adventure</option>
             <option value="relaxation">🧘 Relaxation</option>
             <option value="culture">🏛️ Culture</option>
-            <option value="food">🍜 Food & Drink</option>
+            <option value="food">🍜 Food &amp; Drink</option>
             <option value="budget">💸 Budget</option>
             <option value="luxury">✨ Luxury</option>
           </select>
@@ -126,20 +124,17 @@ export default function TripForm() {
         <button type="submit" disabled={loading} style={buttonStyle}>
           {loading ? "✈️ Planning your trip..." : "Plan My Trip ✈️"}
         </button>
-
       </form>
 
       {error !== "" && (
         <p style={{ color: "red", marginTop: 16 }}>❌ {error}</p>
       )}
 
-      {/* ✅ Show itinerary as it streams in */}
       {result !== "" && (
         <div style={itineraryStyle}>
           <ReactMarkdown>{result}</ReactMarkdown>
         </div>
       )}
-
     </div>
   );
 }
