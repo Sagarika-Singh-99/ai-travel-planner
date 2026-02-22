@@ -8,19 +8,6 @@ const API_BASE =
 
 const PIXABAY_KEY = "54756917-fa927b1649ca48486f5090e73";
 
-// ─── Currency options ────────────────────────────────────
-const CURRENCIES = [
-  { code: "USD", symbol: "$",  label: "🇺🇸 USD" },
-  { code: "GBP", symbol: "£",  label: "🇬🇧 GBP" },
-  { code: "EUR", symbol: "€",  label: "🇪🇺 EUR" },
-  { code: "INR", symbol: "₹",  label: "🇮🇳 INR" },
-  { code: "JPY", symbol: "¥",  label: "🇯🇵 JPY" },
-  { code: "AUD", symbol: "A$", label: "🇦🇺 AUD" },
-  { code: "CAD", symbol: "C$", label: "🇨🇦 CAD" },
-  { code: "SGD", symbol: "S$", label: "🇸🇬 SGD" },
-  { code: "AED", symbol: "د.إ",label: "🇦🇪 AED" },
-];
-
 // ─── Section color themes ────────────────────────────────
 const getSectionTheme = (title: string) => {
   const t = title.toLowerCase();
@@ -99,7 +86,6 @@ export default function TripForm() {
   const [destination, setDestination] = useState("");
   const [days, setDays] = useState(3);
   const [vibe, setVibe] = useState("adventure");
-  const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
@@ -165,7 +151,7 @@ export default function TripForm() {
       const res = await fetch(`${API_BASE}/api/plan-trip`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination, days, vibe, currency }),
+        body: JSON.stringify({ destination, days, vibe }),  // ← currency removed
       });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const reader = res.body!.getReader();
@@ -229,7 +215,7 @@ export default function TripForm() {
     doc.setTextColor(255, 255, 255);
     addLine("Your Travel Planner", 22, true, 8);
     doc.setTextColor(56, 189, 248);
-    addLine(`${destination} · ${days} Days · ${vibe.charAt(0).toUpperCase() + vibe.slice(1)} · ${currency}`, 13, false, 6);
+    addLine(`${destination} · ${days} Days · ${vibe.charAt(0).toUpperCase() + vibe.slice(1)}`, 13, false, 6);  // ← currency removed
     y = 50;
     doc.setTextColor(30, 30, 30);
 
@@ -264,17 +250,6 @@ export default function TripForm() {
 
   const sections = parseIntoSections(result);
 
-  // ─── Dynamic background style ────────────────────────────
-  const bodyBg: React.CSSProperties = bgImage
-    ? {
-        backgroundImage: `linear-gradient(rgba(10,15,30,0.72), rgba(10,15,30,0.85)), url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-        transition: "background-image 1s ease",
-      }
-    : {};
-
   // Update body background dynamically
   useEffect(() => {
     if (bgImage) {
@@ -288,7 +263,7 @@ export default function TripForm() {
   }, [bgImage]);
 
   return (
-    <div style={{ width: "100%", maxWidth: 700, ...bodyBg }}>
+    <div style={{ width: "100%", maxWidth: 700 }}>
       <div ref={topRef} />
 
       {/* Title */}
@@ -319,27 +294,17 @@ export default function TripForm() {
             </div>
           </div>
 
-          {/* Vibe + Currency side by side */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div>
-              <label style={labelStyle}>🎭 Travel Vibe</label>
-              <select value={vibe} onChange={(e) => setVibe(e.target.value)} style={inputStyle}>
-                <option value="adventure">🧗 Adventure</option>
-                <option value="relaxation">🧘 Relaxation</option>
-                <option value="culture">🏛️ Culture</option>
-                <option value="food">🍜 Food & Drink</option>
-                <option value="budget">💸 Budget</option>
-                <option value="luxury">✨ Luxury</option>
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>💱 Currency</label>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={inputStyle}>
-                {CURRENCIES.map(c => (
-                  <option key={c.code} value={c.code}>{c.label}</option>
-                ))}
-              </select>
-            </div>
+          {/* Vibe — full width now that currency is removed */}
+          <div>
+            <label style={labelStyle}>🎭 Travel Vibe</label>
+            <select value={vibe} onChange={(e) => setVibe(e.target.value)} style={inputStyle}>
+              <option value="adventure">🧗 Adventure</option>
+              <option value="relaxation">🧘 Relaxation</option>
+              <option value="culture">🏛️ Culture</option>
+              <option value="food">🍜 Food & Drink</option>
+              <option value="budget">💸 Budget</option>
+              <option value="luxury">✨ Luxury</option>
+            </select>
           </div>
 
           <button type="submit" disabled={loading}
