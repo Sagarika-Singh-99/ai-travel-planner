@@ -1,6 +1,12 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 
+const API_BASE =
+  import.meta.env.MODE === "development"
+    ? "http://localhost:4000"
+    : "https://ai-travel-middleware.onrender.com";
+
+
 export default function TripForm() {
   const [destination, setDestination] = useState("");
   const [days, setDays] = useState(3);
@@ -18,7 +24,7 @@ export default function TripForm() {
     const payload = { destination, days, vibe };
 
     try {
-      const res = await fetch("http://localhost:4000/api/plan-trip", {
+       const res = await fetch(`${API_BASE}/api/plan-trip`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
