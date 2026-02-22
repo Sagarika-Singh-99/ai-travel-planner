@@ -6,38 +6,49 @@ const API_BASE =
     ? "http://localhost:4000"
     : "https://ai-travel-middleware.onrender.com";
 
-// ─── Section color themes ───────────────────────────────
+const PIXABAY_KEY = "54756917-fa927b1649ca48486f5090e73";
+
+// ─── Currency options ────────────────────────────────────
+const CURRENCIES = [
+  { code: "USD", symbol: "$",  label: "🇺🇸 USD" },
+  { code: "GBP", symbol: "£",  label: "🇬🇧 GBP" },
+  { code: "EUR", symbol: "€",  label: "🇪🇺 EUR" },
+  { code: "INR", symbol: "₹",  label: "🇮🇳 INR" },
+  { code: "JPY", symbol: "¥",  label: "🇯🇵 JPY" },
+  { code: "AUD", symbol: "A$", label: "🇦🇺 AUD" },
+  { code: "CAD", symbol: "C$", label: "🇨🇦 CAD" },
+  { code: "SGD", symbol: "S$", label: "🇸🇬 SGD" },
+  { code: "AED", symbol: "د.إ",label: "🇦🇪 AED" },
+];
+
+// ─── Section color themes ────────────────────────────────
 const getSectionTheme = (title: string) => {
   const t = title.toLowerCase();
   if (t.includes("day"))     return { bg: "rgba(56,189,248,0.12)",  border: "#38bdf8", icon: "📅", color: "#38bdf8" };
   if (t.includes("budget") || t.includes("estimated") || t.includes("cost"))
                              return { bg: "rgba(34,197,94,0.12)",   border: "#22c55e", icon: "💰", color: "#22c55e" };
   if (t.includes("food") || t.includes("eat") || t.includes("restaurant"))
-                             return { bg: "rgba(251,146,60,0.12)",   border: "#fb923c", icon: "🍜", color: "#fb923c" };
+                             return { bg: "rgba(251,146,60,0.12)",  border: "#fb923c", icon: "🍜", color: "#fb923c" };
   if (t.includes("hotel") || t.includes("stay") || t.includes("accommodation"))
-                             return { bg: "rgba(168,85,247,0.12)",   border: "#a855f7", icon: "🏨", color: "#a855f7" };
+                             return { bg: "rgba(168,85,247,0.12)",  border: "#a855f7", icon: "🏨", color: "#a855f7" };
   if (t.includes("tip") || t.includes("advice") || t.includes("note") || t.includes("practical"))
-                             return { bg: "rgba(250,204,21,0.12)",   border: "#facc15", icon: "💡", color: "#facc15" };
+                             return { bg: "rgba(250,204,21,0.12)",  border: "#facc15", icon: "💡", color: "#facc15" };
   if (t.includes("weather") || t.includes("forecast") || t.includes("climate"))
-                             return { bg: "rgba(20,184,166,0.12)",  border: "#14b8a6", icon: "🌤️", color: "#14b8a6" };
+                             return { bg: "rgba(20,184,166,0.12)", border: "#14b8a6", icon: "🌤️", color: "#14b8a6" };
   if (t.includes("transport") || t.includes("getting") || t.includes("travel"))
-                             return { bg: "rgba(99,102,241,0.12)",   border: "#6366f1", icon: "🚌", color: "#6366f1" };
+                             return { bg: "rgba(99,102,241,0.12)",  border: "#6366f1", icon: "🚌", color: "#6366f1" };
   if (t.includes("activit") || t.includes("sightseeing") || t.includes("explore"))
-                             return { bg: "rgba(244,63,94,0.12)",    border: "#f43f5e", icon: "🗺️", color: "#f43f5e" };
-  return                            { bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.2)", icon: "📌", color: "#ffffff" };
+                             return { bg: "rgba(244,63,94,0.12)",   border: "#f43f5e", icon: "🗺️", color: "#f43f5e" };
+  return { bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.2)", icon: "📌", color: "#ffffff" };
 };
 
 // ─── Parse markdown into sections ───────────────────────
-interface Section {
-  title: string;
-  body: string;
-}
+interface Section { title: string; body: string; }
 
 const parseIntoSections = (text: string): Section[] => {
   const lines = text.split("\n");
   const sections: Section[] = [];
   let current: Section | null = null;
-
   for (const line of lines) {
     if (line.startsWith("### ") || line.startsWith("## ") || line.startsWith("# ")) {
       if (current) sections.push(current);
@@ -88,6 +99,7 @@ export default function TripForm() {
   const [destination, setDestination] = useState("");
   const [days, setDays] = useState(3);
   const [vibe, setVibe] = useState("adventure");
+  const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
@@ -95,10 +107,28 @@ export default function TripForm() {
   const [progressMsg, setProgressMsg] = useState(PROGRESS_MESSAGES[0]);
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [bgImage, setBgImage] = useState("");
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const msgRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
+  // ─── Fetch background from Pixabay ──────────────────────
+  const fetchBackground = async (dest: string) => {
+    if (!dest.trim()) return;
+    try {
+      const query = encodeURIComponent(dest.split(",")[0].trim() + " travel");
+      const url = `https://pixabay.com/api/?key=${PIXABAY_KEY}&q=${query}&image_type=photo&orientation=horizontal&category=travel&min_width=1280&per_page=5&safesearch=true`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.hits && data.hits.length > 0) {
+        setBgImage(data.hits[0].largeImageURL);
+      }
+    } catch {
+      // silently fail, keep default gradient
+    }
+  };
+
+  // ─── Progress bar ────────────────────────────────────────
   useEffect(() => {
     if (loading) {
       setProgress(0);
@@ -124,16 +154,18 @@ export default function TripForm() {
     };
   }, [loading]);
 
+  // ─── Submit ──────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setResult("");
+    fetchBackground(destination);
     try {
       const res = await fetch(`${API_BASE}/api/plan-trip`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination, days, vibe }),
+        body: JSON.stringify({ destination, days, vibe, currency }),
       });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const reader = res.body!.getReader();
@@ -159,12 +191,8 @@ export default function TripForm() {
     }
   };
 
-  // ─── Scroll to top ──────────────────────────────────────
-  const scrollToTop = () => {
-    topRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const scrollToTop = () => topRef.current?.scrollIntoView({ behavior: "smooth" });
 
-  // ─── Copy itinerary ─────────────────────────────────────
   const copyItinerary = () => {
     const clean = result.replace(/#{1,3}\s/g, "").replace(/\*\*/g, "");
     navigator.clipboard.writeText(clean);
@@ -172,14 +200,12 @@ export default function TripForm() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ─── Copy website link ──────────────────────────────────
   const copyLink = () => {
     navigator.clipboard.writeText("https://ai-travel-planner-snowy.vercel.app/");
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
-  // ─── Download PDF ───────────────────────────────────────
   const downloadPDF = () => {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -198,19 +224,16 @@ export default function TripForm() {
       });
     };
 
-    // Header
     doc.setFillColor(15, 32, 39);
     doc.rect(0, 0, pageWidth, 40, "F");
     doc.setTextColor(255, 255, 255);
-    addLine("✈️ Your Travel Planner", 22, true, 8);
+    addLine("Your Travel Planner", 22, true, 8);
     doc.setTextColor(56, 189, 248);
-    addLine(`${destination} · ${days} Days · ${vibe.charAt(0).toUpperCase() + vibe.slice(1)}`, 13, false, 6);
+    addLine(`${destination} · ${days} Days · ${vibe.charAt(0).toUpperCase() + vibe.slice(1)} · ${currency}`, 13, false, 6);
     y = 50;
     doc.setTextColor(30, 30, 30);
 
-    // Content
-    const lines = result.split("\n");
-    for (const line of lines) {
+    for (const line of result.split("\n")) {
       if (!line.trim()) { y += 3; continue; }
       if (line.startsWith("### ") || line.startsWith("## ") || line.startsWith("# ")) {
         y += 4;
@@ -226,7 +249,6 @@ export default function TripForm() {
       }
     }
 
-    // Footer
     y += 10;
     if (y > 270) { doc.addPage(); y = 20; }
     doc.setDrawColor(200, 200, 200);
@@ -237,17 +259,36 @@ export default function TripForm() {
     doc.setFont("helvetica", "normal");
     doc.text("Built by Sagarika Singh", margin, y);
     doc.text("https://ai-travel-planner-snowy.vercel.app/", pageWidth - margin, y, { align: "right" });
-
     doc.save(`travel-plan-${destination.toLowerCase().replace(/\s+/g, "-")}.pdf`);
   };
 
   const sections = parseIntoSections(result);
-  //const vibeLabel = vibe.charAt(0).toUpperCase() + vibe.slice(1);
+
+  // ─── Dynamic background style ────────────────────────────
+  const bodyBg: React.CSSProperties = bgImage
+    ? {
+        backgroundImage: `linear-gradient(rgba(10,15,30,0.72), rgba(10,15,30,0.85)), url(${bgImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
+        transition: "background-image 1s ease",
+      }
+    : {};
+
+  // Update body background dynamically
+  useEffect(() => {
+    if (bgImage) {
+      document.body.style.backgroundImage = `linear-gradient(rgba(10,15,30,0.72), rgba(10,15,30,0.85)), url(${bgImage})`;
+      document.body.style.backgroundSize = "cover";
+      document.body.style.backgroundPosition = "center";
+      document.body.style.backgroundAttachment = "fixed";
+    } else {
+      document.body.style.backgroundImage = "";
+    }
+  }, [bgImage]);
 
   return (
-    <div style={{ width: "100%", maxWidth: 700 }}>
-
-      {/* Top anchor */}
+    <div style={{ width: "100%", maxWidth: 700, ...bodyBg }}>
       <div ref={topRef} />
 
       {/* Title */}
@@ -257,6 +298,7 @@ export default function TripForm() {
       {/* Form Card */}
       <div style={cardStyle}>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
           <div>
             <label style={labelStyle}>🌍 Destination</label>
             <input
@@ -265,6 +307,7 @@ export default function TripForm() {
               placeholder="e.g. Tokyo, Japan" required style={inputStyle}
             />
           </div>
+
           <div>
             <label style={labelStyle}>
               📅 Number of Days: <strong style={{ color: "#38bdf8" }}>{days}</strong>
@@ -275,17 +318,30 @@ export default function TripForm() {
               <span>1 day</span><span>30 days</span>
             </div>
           </div>
-          <div>
-            <label style={labelStyle}>🎭 Travel Vibe</label>
-            <select value={vibe} onChange={(e) => setVibe(e.target.value)} style={inputStyle}>
-              <option value="adventure">🧗 Adventure</option>
-              <option value="relaxation">🧘 Relaxation</option>
-              <option value="culture">🏛️ Culture</option>
-              <option value="food">🍜 Food & Drink</option>
-              <option value="budget">💸 Budget</option>
-              <option value="luxury">✨ Luxury</option>
-            </select>
+
+          {/* Vibe + Currency side by side */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={labelStyle}>🎭 Travel Vibe</label>
+              <select value={vibe} onChange={(e) => setVibe(e.target.value)} style={inputStyle}>
+                <option value="adventure">🧗 Adventure</option>
+                <option value="relaxation">🧘 Relaxation</option>
+                <option value="culture">🏛️ Culture</option>
+                <option value="food">🍜 Food & Drink</option>
+                <option value="budget">💸 Budget</option>
+                <option value="luxury">✨ Luxury</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>💱 Currency</label>
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={inputStyle}>
+                {CURRENCIES.map(c => (
+                  <option key={c.code} value={c.code}>{c.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
+
           <button type="submit" disabled={loading}
             style={loading ? { ...buttonStyle, opacity: 0.6, cursor: "not-allowed" } : buttonStyle}>
             {loading ? "✈️ Planning your trip..." : "Plan My Trip ✈️"}
@@ -320,7 +376,7 @@ export default function TripForm() {
                 background: theme.bg,
                 border: `1px solid ${theme.border}40`,
                 borderLeftWidth: 5, borderLeftColor: theme.border, borderLeftStyle: "solid",
-                boxShadow: `0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px ${theme.border}20`,
+                boxShadow: `0 4px 24px rgba(0,0,0,0.4)`,
                 backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
               }}>
                 {section.title && (
@@ -343,16 +399,13 @@ export default function TripForm() {
 
           {loading && <span style={cursorStyle}>▋</span>}
 
-          {/* Action Buttons — shown after streaming done */}
+          {/* Action Buttons */}
           {!loading && result && (
             <div style={actionRowStyle}>
-              <button onClick={scrollToTop} style={actionBtnStyle} title="Scroll to top">
-                ⬆️ Back to Top
-              </button>
-              <button onClick={downloadPDF} style={actionBtnStyle} title="Download as PDF">
-                📄 Download PDF
-              </button>
-              <button onClick={copyItinerary} style={copied ? { ...actionBtnStyle, ...actionBtnActiveStyle } : actionBtnStyle}>
+              <button onClick={scrollToTop} style={actionBtnStyle}>⬆️ Back to Top</button>
+              <button onClick={downloadPDF} style={actionBtnStyle}>📄 Download PDF</button>
+              <button onClick={copyItinerary}
+                style={copied ? { ...actionBtnStyle, background: "rgba(34,197,94,0.2)", border: "1px solid #22c55e", color: "#22c55e" } : actionBtnStyle}>
                 {copied ? "✅ Copied!" : "📋 Copy Itinerary"}
               </button>
             </div>
@@ -365,14 +418,10 @@ export default function TripForm() {
         <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Built by Sagarika Singh</span>
         <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
           <button onClick={copyLink} style={footerBtnStyle}>
-            {linkCopied ? "✅ Link Copied!" : "🔗 Share App"}
+            {linkCopied ? "✅ Copied!" : "🔗 Share App"}
           </button>
-          <a href="https://github.com/Sagarika-Singh-99" target="_blank" rel="noreferrer" style={footerLinkStyle}>
-            GitHub
-          </a>
-          <a href="https://www.linkedin.com/in/sagarika-singh-938aa11bb/" target="_blank" rel="noreferrer" style={footerLinkStyle}>
-            LinkedIn
-          </a>
+          <a href="https://github.com/Sagarika-Singh-99" target="_blank" rel="noreferrer" style={footerLinkStyle}>GitHub</a>
+          <a href="https://www.linkedin.com/in/sagarika-singh-938aa11bb/" target="_blank" rel="noreferrer" style={footerLinkStyle}>LinkedIn</a>
         </div>
       </div>
 
@@ -453,10 +502,6 @@ const actionBtnStyle: React.CSSProperties = {
   cursor: "pointer", backdropFilter: "blur(8px)",
   transition: "all 0.2s",
 };
-const actionBtnActiveStyle: React.CSSProperties = {
-  background: "rgba(34,197,94,0.2)",
-  border: "1px solid #22c55e", color: "#22c55e",
-};
 const footerStyle: React.CSSProperties = {
   marginTop: 48, paddingTop: 20,
   borderTop: "1px solid rgba(255,255,255,0.1)",
@@ -464,8 +509,7 @@ const footerStyle: React.CSSProperties = {
   alignItems: "center", flexWrap: "wrap", gap: 12,
 };
 const footerLinkStyle: React.CSSProperties = {
-  color: "rgba(255,255,255,0.55)", fontSize: 13,
-  textDecoration: "none",
+  color: "rgba(255,255,255,0.55)", fontSize: 13, textDecoration: "none",
 };
 const footerBtnStyle: React.CSSProperties = {
   padding: "6px 14px", fontSize: 13, fontWeight: 600,
