@@ -8,18 +8,22 @@ const API_BASE =
 // ─── Section color themes ───────────────────────────────
 const getSectionTheme = (title: string) => {
   const t = title.toLowerCase();
-  if (t.includes("day"))     return { bg: "rgba(56,189,248,0.1)",  border: "#38bdf8", icon: "📅", color: "#38bdf8" };
-  if (t.includes("budget"))  return { bg: "rgba(34,197,94,0.1)",   border: "#22c55e", icon: "💰", color: "#22c55e" };
+  if (t.includes("day"))     return { bg: "rgba(56,189,248,0.12)",  border: "#38bdf8", icon: "📅", color: "#38bdf8" };
+  if (t.includes("budget") || t.includes("estimated") || t.includes("cost"))
+                             return { bg: "rgba(34,197,94,0.12)",   border: "#22c55e", icon: "💰", color: "#22c55e" };
   if (t.includes("food") || t.includes("eat") || t.includes("restaurant"))
-                             return { bg: "rgba(251,146,60,0.1)",   border: "#fb923c", icon: "🍜", color: "#fb923c" };
+                             return { bg: "rgba(251,146,60,0.12)",   border: "#fb923c", icon: "🍜", color: "#fb923c" };
   if (t.includes("hotel") || t.includes("stay") || t.includes("accommodation"))
-                             return { bg: "rgba(168,85,247,0.1)",   border: "#a855f7", icon: "🏨", color: "#a855f7" };
-  if (t.includes("tip") || t.includes("advice") || t.includes("note"))
-                             return { bg: "rgba(250,204,21,0.1)",   border: "#facc15", icon: "💡", color: "#facc15" };
-  if (t.includes("weather")) return { bg: "rgba(20,184,166,0.1)",  border: "#14b8a6", icon: "🌤️", color: "#14b8a6" };
-  if (t.includes("transport") || t.includes("getting"))
-                             return { bg: "rgba(99,102,241,0.1)",   border: "#6366f1", icon: "🚌", color: "#6366f1" };
-  return                            { bg: "rgba(255,255,255,0.05)", border: "#ffffff40", icon: "📌", color: "#ffffff" };
+                             return { bg: "rgba(168,85,247,0.12)",   border: "#a855f7", icon: "🏨", color: "#a855f7" };
+  if (t.includes("tip") || t.includes("advice") || t.includes("note") || t.includes("practical"))
+                             return { bg: "rgba(250,204,21,0.12)",   border: "#facc15", icon: "💡", color: "#facc15" };
+  if (t.includes("weather") || t.includes("forecast") || t.includes("climate"))
+                             return { bg: "rgba(20,184,166,0.12)",  border: "#14b8a6", icon: "🌤️", color: "#14b8a6" };
+  if (t.includes("transport") || t.includes("getting") || t.includes("travel"))
+                             return { bg: "rgba(99,102,241,0.12)",   border: "#6366f1", icon: "🚌", color: "#6366f1" };
+  if (t.includes("activit") || t.includes("sightseeing") || t.includes("explore"))
+                             return { bg: "rgba(244,63,94,0.12)",    border: "#f43f5e", icon: "🗺️", color: "#f43f5e" };
+  return                            { bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.2)", icon: "📌", color: "#ffffff" };
 };
 
 // ─── Parse markdown into sections ───────────────────────
@@ -34,9 +38,13 @@ const parseIntoSections = (text: string): Section[] => {
   let current: Section | null = null;
 
   for (const line of lines) {
-    if (line.startsWith("## ") || line.startsWith("# ")) {
+    // Handle ###, ##, # all as section headers
+    if (line.startsWith("### ") || line.startsWith("## ") || line.startsWith("# ")) {
       if (current) sections.push(current);
-      current = { title: line.replace(/^##?\s*/, "").trim(), body: "" };
+      current = {
+        title: line.replace(/^#+\s*/, "").trim(),
+        body: ""
+      };
     } else {
       if (current) current.body += line + "\n";
       else if (line.trim()) {
@@ -48,27 +56,40 @@ const parseIntoSections = (text: string): Section[] => {
   return sections.filter(s => s.title || s.body.trim());
 };
 
-// ─── Render body text (bold, bullets) ───────────────────
+// ─── Render body text (bold, bullets, skip raw #) ───────
 const renderBody = (body: string) => {
   return body.split("\n").map((line, i) => {
     if (!line.trim()) return <br key={i} />;
+
+    // Skip any leftover markdown headers in body
+    if (line.trim().startsWith("#")) return null;
+
     // Bold **text**
-    const parts = line.split(/\*\*(.*?)\*\*/g).map((part, j) =>
-      j % 2 === 1 ? <strong key={j}>{part}</strong> : part
-    );
+    const parseBold = (text: string) =>
+      text.split(/\*\*(.*?)\*\*/g).map((part, j) =>
+        j % 2 === 1 ? <strong key={j} style={{ color: "#ffffff" }}>{part}</strong> : part
+      );
+
+    // Bullet lines
     if (line.trim().startsWith("- ") || line.trim().startsWith("• ")) {
+      const content = line.trim().replace(/^[-•]\s*/, "");
       return (
-        <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-          <span style={{ color: "#38bdf8", marginTop: 2 }}>▸</span>
-          <span>{parts.map((p, j) => <span key={j}>{p}</span>)}</span>
+        <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
+          <span style={{ color: "#38bdf8", fontSize: 18, lineHeight: 1.5, flexShrink: 0 }}>▸</span>
+          <span style={{ lineHeight: 1.7 }}>{parseBold(content)}</span>
         </div>
       );
     }
-    return <p key={i} style={{ margin: "4px 0" }}>{parts.map((p, j) => <span key={j}>{p}</span>)}</p>;
+
+    return (
+      <p key={i} style={{ margin: "4px 0", lineHeight: 1.8 }}>
+        {parseBold(line)}
+      </p>
+    );
   });
 };
 
-// ─── Progress bar messages ───────────────────────────────
+// ─── Progress messages ───────────────────────────────────
 const PROGRESS_MESSAGES = [
   "Researching destinations...",
   "Planning daily activities...",
@@ -78,6 +99,7 @@ const PROGRESS_MESSAGES = [
   "Finalising your itinerary...",
 ];
 
+// ─── Main Component ──────────────────────────────────────
 export default function TripForm() {
   const [destination, setDestination] = useState("");
   const [days, setDays] = useState(3);
@@ -90,7 +112,6 @@ export default function TripForm() {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const msgRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Progress bar animation while loading
   useEffect(() => {
     if (loading) {
       setProgress(0);
@@ -99,7 +120,7 @@ export default function TripForm() {
       let m = 0;
       progressRef.current = setInterval(() => {
         p += Math.random() * 3;
-        if (p > 90) p = 90; // never reach 100 until done
+        if (p > 90) p = 90;
         setProgress(Math.floor(p));
       }, 400);
       msgRef.current = setInterval(() => {
@@ -182,7 +203,9 @@ export default function TripForm() {
           </div>
 
           <div>
-            <label style={labelStyle}>📅 Number of Days: <strong style={{ color: "#38bdf8" }}>{days}</strong></label>
+            <label style={labelStyle}>
+              📅 Number of Days: <strong style={{ color: "#38bdf8" }}>{days}</strong>
+            </label>
             <input
               type="range" min={1} max={30} value={days}
               onChange={(e) => setDays(Number(e.target.value))}
@@ -205,7 +228,11 @@ export default function TripForm() {
             </select>
           </div>
 
-          <button type="submit" disabled={loading} style={loading ? { ...buttonStyle, opacity: 0.6, cursor: "not-allowed" } : buttonStyle}>
+          <button
+            type="submit"
+            disabled={loading}
+            style={loading ? { ...buttonStyle, opacity: 0.6, cursor: "not-allowed" } : buttonStyle}
+          >
             {loading ? "✈️ Planning your trip..." : "Plan My Trip ✈️"}
           </button>
 
@@ -216,7 +243,7 @@ export default function TripForm() {
       {error && <div style={errorStyle}>❌ {error}</div>}
 
       {/* Progress Bar */}
-      {(loading || (progress > 0 && progress < 100)) && (
+      {loading && (
         <div style={progressContainerStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>✈️ {progressMsg}</span>
@@ -230,32 +257,64 @@ export default function TripForm() {
 
       {/* Section Cards */}
       {sections.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 24, marginTop: 8 }}>
           {sections.map((section, i) => {
             const theme = getSectionTheme(section.title);
             return (
-              <div key={i} style={{ ...sectionCardStyle, background: theme.bg, borderLeft: `4px solid ${theme.border}` }}>
+              <div
+                key={i}
+                style={{
+                  borderRadius: 18,
+                  padding: "24px 28px",
+                  background: theme.bg,
+                  borderLeft: `5px solid ${theme.border}`,
+                  border: `1px solid ${theme.border}40`,
+                  borderLeftWidth: 5,
+                  boxShadow: `0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px ${theme.border}20`,
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                }}
+              >
+                {/* Section Title */}
                 {section.title && (
-                  <div style={{ ...sectionTitleStyle, color: theme.color }}>
-                    {theme.icon} {section.title}
+                  <div style={{
+                    fontSize: 20,
+                    fontWeight: 800,
+                    color: theme.color,
+                    marginBottom: 14,
+                    paddingBottom: 12,
+                    borderBottom: `1px solid ${theme.border}30`,
+                    letterSpacing: 0.3,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}>
+                    <span style={{ fontSize: 22 }}>{theme.icon}</span>
+                    <span>{section.title}</span>
                   </div>
                 )}
-                <div style={sectionBodyStyle}>
+                {/* Section Body */}
+                <div style={{
+                  color: "rgba(255,255,255,0.85)",
+                  fontSize: 15,
+                  lineHeight: 1.9,
+                }}>
                   {renderBody(section.body)}
                 </div>
               </div>
             );
           })}
-          {/* Typing cursor at end while streaming */}
-          {loading && (
-            <span style={cursorStyle}>▋</span>
-          )}
+
+          {/* Typing cursor while streaming */}
+          {loading && <span style={cursorStyle}>▋</span>}
         </div>
       )}
 
       {/* Footer */}
       <div style={footerStyle}>
-        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Built by Sagarika Singh</span>
+        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
+          Built by Sagarika Singh
+        </span>
         <div style={{ display: "flex", gap: 20 }}>
           <a href="https://github.com/Sagarika-Singh-99" target="_blank" rel="noreferrer" style={footerLinkStyle}>
             GitHub
@@ -271,7 +330,6 @@ export default function TripForm() {
 }
 
 /* ─── Styles ─────────────────────────────────────────── */
-
 const titleStyle: React.CSSProperties = {
   fontSize: 42, fontWeight: 800, color: "#ffffff",
   textAlign: "center", marginBottom: 8,
@@ -331,20 +389,6 @@ const progressFillStyle: React.CSSProperties = {
   background: "linear-gradient(90deg, #38bdf8, #818cf8)",
   transition: "width 0.4s ease",
 };
-const sectionCardStyle: React.CSSProperties = {
-  borderRadius: 16, padding: "20px 24px",
-  backdropFilter: "blur(12px)",
-  WebkitBackdropFilter: "blur(12px)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-};
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 20, fontWeight: 800,
-  marginBottom: 12, letterSpacing: 0.3,
-};
-const sectionBodyStyle: React.CSSProperties = {
-  color: "rgba(255,255,255,0.82)", fontSize: 15, lineHeight: 1.9,
-};
 const cursorStyle: React.CSSProperties = {
   display: "inline-block", color: "#38bdf8", fontWeight: 900,
   animation: "blink 1s step-start infinite", marginLeft: 2,
@@ -357,5 +401,5 @@ const footerStyle: React.CSSProperties = {
 };
 const footerLinkStyle: React.CSSProperties = {
   color: "rgba(255,255,255,0.55)", fontSize: 13,
-  textDecoration: "none", transition: "color 0.2s",
+  textDecoration: "none",
 };
