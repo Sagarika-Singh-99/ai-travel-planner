@@ -11,9 +11,6 @@ to receive a fully AI-generated, streamed travel itinerary with weather, budget,
 
 ## 📁 Repo Structure
 
-
-## 📁 Repo Structure
-
 ```
 ai-travel-planner/
 │
