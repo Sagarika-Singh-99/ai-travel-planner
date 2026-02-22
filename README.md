@@ -10,15 +10,25 @@ to receive a fully AI-generated, streamed travel itinerary with weather, budget,
 [https://ai-travel-planner-snowy.vercel.app/](https://ai-travel-planner-snowy.vercel.app/)
 
 ## 📁 Repo Structure
+
+
+## 📁 Repo Structure
+
+```
 ai-travel-planner/
+│
 ├── public/
+│
 ├── src/
 │   ├── components/
-│   │   └── TripForm.tsx       # Main form + itinerary display component
-│   ├── App.tsx                # Root component
-│   ├── main.tsx               # Vite entry point
-│   └── index.css              # Global styles + gradient animation
+│   │   └── TripForm.tsx
+│   ├── App.tsx
+│   ├── main.tsx
+│   └── index.css
+│
 ├── index.html
 ├── package.json
 ├── tsconfig.json
 └── vite.config.ts
+```
+
