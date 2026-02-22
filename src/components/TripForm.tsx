@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import jsPDF from "jspdf";
 
 const API_BASE =
   import.meta.env.MODE === "development"
@@ -38,39 +39,27 @@ const parseIntoSections = (text: string): Section[] => {
   let current: Section | null = null;
 
   for (const line of lines) {
-    // Handle ###, ##, # all as section headers
     if (line.startsWith("### ") || line.startsWith("## ") || line.startsWith("# ")) {
       if (current) sections.push(current);
-      current = {
-        title: line.replace(/^#+\s*/, "").trim(),
-        body: ""
-      };
+      current = { title: line.replace(/^#+\s*/, "").trim(), body: "" };
     } else {
       if (current) current.body += line + "\n";
-      else if (line.trim()) {
-        current = { title: "", body: line + "\n" };
-      }
+      else if (line.trim()) current = { title: "", body: line + "\n" };
     }
   }
   if (current) sections.push(current);
   return sections.filter(s => s.title || s.body.trim());
 };
 
-// ─── Render body text (bold, bullets, skip raw #) ───────
+// ─── Render body text ────────────────────────────────────
 const renderBody = (body: string) => {
   return body.split("\n").map((line, i) => {
     if (!line.trim()) return <br key={i} />;
-
-    // Skip any leftover markdown headers in body
     if (line.trim().startsWith("#")) return null;
-
-    // Bold **text**
     const parseBold = (text: string) =>
       text.split(/\*\*(.*?)\*\*/g).map((part, j) =>
         j % 2 === 1 ? <strong key={j} style={{ color: "#ffffff" }}>{part}</strong> : part
       );
-
-    // Bullet lines
     if (line.trim().startsWith("- ") || line.trim().startsWith("• ")) {
       const content = line.trim().replace(/^[-•]\s*/, "");
       return (
@@ -80,12 +69,7 @@ const renderBody = (body: string) => {
         </div>
       );
     }
-
-    return (
-      <p key={i} style={{ margin: "4px 0", lineHeight: 1.8 }}>
-        {parseBold(line)}
-      </p>
-    );
+    return <p key={i} style={{ margin: "4px 0", lineHeight: 1.8 }}>{parseBold(line)}</p>;
   });
 };
 
@@ -109,15 +93,17 @@ export default function TripForm() {
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState(PROGRESS_MESSAGES[0]);
+  const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const msgRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const topRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (loading) {
       setProgress(0);
       setProgressMsg(PROGRESS_MESSAGES[0]);
-      let p = 0;
-      let m = 0;
+      let p = 0; let m = 0;
       progressRef.current = setInterval(() => {
         p += Math.random() * 3;
         if (p > 90) p = 90;
@@ -143,19 +129,15 @@ export default function TripForm() {
     setLoading(true);
     setError("");
     setResult("");
-
     try {
       const res = await fetch(`${API_BASE}/api/plan-trip`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ destination, days, vibe }),
       });
-
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
-
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -177,10 +159,96 @@ export default function TripForm() {
     }
   };
 
+  // ─── Scroll to top ──────────────────────────────────────
+  const scrollToTop = () => {
+    topRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // ─── Copy itinerary ─────────────────────────────────────
+  const copyItinerary = () => {
+    const clean = result.replace(/#{1,3}\s/g, "").replace(/\*\*/g, "");
+    navigator.clipboard.writeText(clean);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // ─── Copy website link ──────────────────────────────────
+  const copyLink = () => {
+    navigator.clipboard.writeText("https://ai-travel-planner-snowy.vercel.app/");
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  // ─── Download PDF ───────────────────────────────────────
+  const downloadPDF = () => {
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const maxWidth = pageWidth - margin * 2;
+    let y = 20;
+
+    const addLine = (text: string, fontSize: number, bold = false, gap = 7) => {
+      doc.setFontSize(fontSize);
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      const lines = doc.splitTextToSize(text, maxWidth);
+      lines.forEach((line: string) => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        doc.text(line, margin, y);
+        y += gap;
+      });
+    };
+
+    // Header
+    doc.setFillColor(15, 32, 39);
+    doc.rect(0, 0, pageWidth, 40, "F");
+    doc.setTextColor(255, 255, 255);
+    addLine("✈️ Your Travel Planner", 22, true, 8);
+    doc.setTextColor(56, 189, 248);
+    addLine(`${destination} · ${days} Days · ${vibe.charAt(0).toUpperCase() + vibe.slice(1)}`, 13, false, 6);
+    y = 50;
+    doc.setTextColor(30, 30, 30);
+
+    // Content
+    const lines = result.split("\n");
+    for (const line of lines) {
+      if (!line.trim()) { y += 3; continue; }
+      if (line.startsWith("### ") || line.startsWith("## ") || line.startsWith("# ")) {
+        y += 4;
+        doc.setDrawColor(56, 189, 248);
+        doc.setLineWidth(0.5);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 5;
+        addLine(line.replace(/^#+\s*/, ""), 14, true, 8);
+      } else if (line.trim().startsWith("- ") || line.trim().startsWith("• ")) {
+        addLine("• " + line.trim().replace(/^[-•]\s*/, ""), 11, false, 6);
+      } else {
+        addLine(line.replace(/\*\*/g, ""), 11, false, 6);
+      }
+    }
+
+    // Footer
+    y += 10;
+    if (y > 270) { doc.addPage(); y = 20; }
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setTextColor(120, 120, 120);
+    doc.setFont("helvetica", "normal");
+    doc.text("Built by Sagarika Singh", margin, y);
+    doc.text("https://ai-travel-planner-snowy.vercel.app/", pageWidth - margin, y, { align: "right" });
+
+    doc.save(`travel-plan-${destination.toLowerCase().replace(/\s+/g, "-")}.pdf`);
+  };
+
   const sections = parseIntoSections(result);
+  const vibeLabel = vibe.charAt(0).toUpperCase() + vibe.slice(1);
 
   return (
     <div style={{ width: "100%", maxWidth: 700 }}>
+
+      {/* Top anchor */}
+      <div ref={topRef} />
 
       {/* Title */}
       <h1 style={titleStyle}>✈️ Your Travel Planner</h1>
@@ -189,33 +257,24 @@ export default function TripForm() {
       {/* Form Card */}
       <div style={cardStyle}>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
           <div>
             <label style={labelStyle}>🌍 Destination</label>
             <input
-              type="text"
-              value={destination}
+              type="text" value={destination}
               onChange={(e) => setDestination(e.target.value)}
-              placeholder="e.g. Tokyo, Japan"
-              required
-              style={inputStyle}
+              placeholder="e.g. Tokyo, Japan" required style={inputStyle}
             />
           </div>
-
           <div>
             <label style={labelStyle}>
               📅 Number of Days: <strong style={{ color: "#38bdf8" }}>{days}</strong>
             </label>
-            <input
-              type="range" min={1} max={30} value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              style={sliderStyle}
-            />
+            <input type="range" min={1} max={30} value={days}
+              onChange={(e) => setDays(Number(e.target.value))} style={sliderStyle} />
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#aaa", marginTop: 4 }}>
               <span>1 day</span><span>30 days</span>
             </div>
           </div>
-
           <div>
             <label style={labelStyle}>🎭 Travel Vibe</label>
             <select value={vibe} onChange={(e) => setVibe(e.target.value)} style={inputStyle}>
@@ -227,15 +286,10 @@ export default function TripForm() {
               <option value="luxury">✨ Luxury</option>
             </select>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={loading ? { ...buttonStyle, opacity: 0.6, cursor: "not-allowed" } : buttonStyle}
-          >
+          <button type="submit" disabled={loading}
+            style={loading ? { ...buttonStyle, opacity: 0.6, cursor: "not-allowed" } : buttonStyle}>
             {loading ? "✈️ Planning your trip..." : "Plan My Trip ✈️"}
           </button>
-
         </form>
       </div>
 
@@ -261,61 +315,58 @@ export default function TripForm() {
           {sections.map((section, i) => {
             const theme = getSectionTheme(section.title);
             return (
-              <div
-                key={i}
-                style={{
-                  borderRadius: 18,
-                  padding: "24px 28px",
-                  background: theme.bg,
-                  borderLeft: `5px solid ${theme.border}`,
-                  border: `1px solid ${theme.border}40`,
-                  borderLeftWidth: 5,
-                  boxShadow: `0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px ${theme.border}20`,
-                  backdropFilter: "blur(12px)",
-                  WebkitBackdropFilter: "blur(12px)",
-                }}
-              >
-                {/* Section Title */}
+              <div key={i} style={{
+                borderRadius: 18, padding: "24px 28px",
+                background: theme.bg,
+                border: `1px solid ${theme.border}40`,
+                borderLeftWidth: 5, borderLeftColor: theme.border, borderLeftStyle: "solid",
+                boxShadow: `0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px ${theme.border}20`,
+                backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+              }}>
                 {section.title && (
                   <div style={{
-                    fontSize: 20,
-                    fontWeight: 800,
-                    color: theme.color,
-                    marginBottom: 14,
-                    paddingBottom: 12,
+                    fontSize: 20, fontWeight: 800, color: theme.color,
+                    marginBottom: 14, paddingBottom: 12,
                     borderBottom: `1px solid ${theme.border}30`,
-                    letterSpacing: 0.3,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
+                    letterSpacing: 0.3, display: "flex", alignItems: "center", gap: 8,
                   }}>
                     <span style={{ fontSize: 22 }}>{theme.icon}</span>
                     <span>{section.title}</span>
                   </div>
                 )}
-                {/* Section Body */}
-                <div style={{
-                  color: "rgba(255,255,255,0.85)",
-                  fontSize: 15,
-                  lineHeight: 1.9,
-                }}>
+                <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 15, lineHeight: 1.9 }}>
                   {renderBody(section.body)}
                 </div>
               </div>
             );
           })}
 
-          {/* Typing cursor while streaming */}
           {loading && <span style={cursorStyle}>▋</span>}
+
+          {/* Action Buttons — shown after streaming done */}
+          {!loading && result && (
+            <div style={actionRowStyle}>
+              <button onClick={scrollToTop} style={actionBtnStyle} title="Scroll to top">
+                ⬆️ Back to Top
+              </button>
+              <button onClick={downloadPDF} style={actionBtnStyle} title="Download as PDF">
+                📄 Download PDF
+              </button>
+              <button onClick={copyItinerary} style={copied ? { ...actionBtnStyle, ...actionBtnActiveStyle } : actionBtnStyle}>
+                {copied ? "✅ Copied!" : "📋 Copy Itinerary"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Footer */}
       <div style={footerStyle}>
-        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
-          Built by Sagarika Singh
-        </span>
-        <div style={{ display: "flex", gap: 20 }}>
+        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Built by Sagarika Singh</span>
+        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <button onClick={copyLink} style={footerBtnStyle}>
+            {linkCopied ? "✅ Link Copied!" : "🔗 Share App"}
+          </button>
           <a href="https://github.com/Sagarika-Singh-99" target="_blank" rel="noreferrer" style={footerLinkStyle}>
             GitHub
           </a>
@@ -341,12 +392,10 @@ const subtitleStyle: React.CSSProperties = {
 };
 const cardStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.07)",
-  backdropFilter: "blur(16px)",
-  WebkitBackdropFilter: "blur(16px)",
+  backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
   border: "1px solid rgba(255,255,255,0.15)",
   borderRadius: 20, padding: "36px 40px",
-  boxShadow: "0 8px 40px rgba(0,0,0,0.4)",
-  marginBottom: 28,
+  boxShadow: "0 8px 40px rgba(0,0,0,0.4)", marginBottom: 28,
 };
 const labelStyle: React.CSSProperties = {
   display: "block", color: "rgba(255,255,255,0.85)",
@@ -393,6 +442,21 @@ const cursorStyle: React.CSSProperties = {
   display: "inline-block", color: "#38bdf8", fontWeight: 900,
   animation: "blink 1s step-start infinite", marginLeft: 2,
 };
+const actionRowStyle: React.CSSProperties = {
+  display: "flex", gap: 12, flexWrap: "wrap",
+  justifyContent: "center", marginTop: 8, marginBottom: 8,
+};
+const actionBtnStyle: React.CSSProperties = {
+  padding: "12px 22px", fontSize: 14, fontWeight: 600,
+  borderRadius: 12, border: "1px solid rgba(255,255,255,0.2)",
+  background: "rgba(255,255,255,0.08)", color: "#ffffff",
+  cursor: "pointer", backdropFilter: "blur(8px)",
+  transition: "all 0.2s",
+};
+const actionBtnActiveStyle: React.CSSProperties = {
+  background: "rgba(34,197,94,0.2)",
+  border: "1px solid #22c55e", color: "#22c55e",
+};
 const footerStyle: React.CSSProperties = {
   marginTop: 48, paddingTop: 20,
   borderTop: "1px solid rgba(255,255,255,0.1)",
@@ -402,4 +466,10 @@ const footerStyle: React.CSSProperties = {
 const footerLinkStyle: React.CSSProperties = {
   color: "rgba(255,255,255,0.55)", fontSize: 13,
   textDecoration: "none",
+};
+const footerBtnStyle: React.CSSProperties = {
+  padding: "6px 14px", fontSize: 13, fontWeight: 600,
+  borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)",
+  background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)",
+  cursor: "pointer",
 };
