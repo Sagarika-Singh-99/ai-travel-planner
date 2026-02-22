@@ -28,4 +28,41 @@ ai-travel-planner/
 ├── tsconfig.json
 └── vite.config.ts
 ```
+## 🛠️ Tech Stack & Libraries
+
+| Library | Purpose |
+|---------|---------|
+| React 18 | UI framework |
+| Vite | Build tool + dev server |
+| TypeScript | Type safety |
+| jsPDF | PDF generation for itinerary download |
+| Pixabay API | Dynamic destination background images |
+
+## 📄 File Descriptions
+
+| File | Description |
+|------|-------------|
+| `src/components/TripForm.tsx` | The entire app lives here — form inputs, SSE streaming, section card rendering, PDF download, copy itinerary, progress bar, and background image logic |
+| `src/App.tsx` | Root component, renders TripForm |
+| `src/main.tsx` | Vite entry point, mounts React app to DOM |
+| `src/index.css` | Global styles, animated gradient background, blink keyframe |
+
+## 🚀 Install & Run Locally
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/Sagarika-Singh-99/ai-travel-planner.git
+cd ai-travel-planner
+
+# 2. Install dependencies
+npm install
+
+# 3. Create a .env file
+echo "VITE_API_BASE=http://localhost:4000" > .env
+
+# 4. Start the dev server
+npm run dev
+```
+
+> Make sure the middleware is running locally on port 4000 before starting the frontend.
 
